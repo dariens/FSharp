@@ -1,0 +1,15 @@
+<root>
+  <TestUnion_List>
+    <Case>Car</Case>
+    <Fields>Mercedes</Fields>
+  </TestUnion_List>
+  <TestUnion_List>
+    <Case>Bus</Case>
+    <Fields>Bus</Fields>
+    <Fields>5</Fields>
+  </TestUnion_List>
+  <TestUnion_List>
+    <Case>Plane</Case>
+    <Fields>Plane</Fields>
+  </TestUnion_List>
+</root>
