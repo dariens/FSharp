@@ -1,6 +1,7 @@
 ﻿namespace Structural.SteelDesign
 
 open System
+open UnitsNet.Units
 
 [<Measure>] type inch
 [<Measure>] type lbf
@@ -13,6 +14,7 @@ type ISection = interface end
 [<AutoOpen>]
 module Materials =
 
+    [<StructuredFormatDisplay("{AsString}")>]
     type SteelMaterial =
         {
         Fy : float<ksi>
@@ -22,7 +24,14 @@ module Materials =
         
         static member create (Fy, Fu, E) = {Fy = Fy; Fu = Fu; E = E}
 
-open Materials
+        override this.ToString() =
+            System.String.Format("\r\n{{\r\nFy = {0:0.0####} <ksi>\r\nFu = {1:0.0####} <ksi>\r\nE = {2:0.0####} <ksi>\r\n}}", this.Fy, this.Fu, this.E)
+        member this.AsString = this.ToString()
+     
+
+
+module test =
+    let myMaterial = (SteelMaterial.create (50.0<ksi>, 60.0<ksi>, 29000.0<ksi>))
 
 
 type Rotation =
@@ -42,7 +51,7 @@ type Transformation =
 module Sections =
     open Materials
 
-
+    [<StructuredFormatDisplay("{AsString}")>]
     type Plate =
         {
         Length : float<inch>
@@ -52,6 +61,21 @@ module Sections =
         }
         interface ISection
 
+        override this.ToString() =
+            let transformations = 
+                match this.Transformations with
+                | Some value -> box value
+                | None -> box "null"
+            let material =
+                let lines = this.Material.AsString.Split([|"\r\n"|], StringSplitOptions.None )
+                [for line in lines do
+                    yield "          " + line]
+                |> List.fold (fun r s -> r + s + "\r\n") ("")
+                   
+            System.String.Format("Plate =\r\n{{\r\nLength = {0:0.0####} <inch>\r\nThickness = {1:0.0####} <inch>\r\nMaterial = {2:0.0####}\r\nTransformations = {3}\r\n}}",
+                this.Length, this.Thickness, material, transformations)
+        member this.AsString = this.ToString()
+
         static member create (length, t, material, transformations) =
             {
             Length = length
@@ -59,6 +83,8 @@ module Sections =
             Material = material
             Transformations = transformations
             }
+
+    let myPlate = (Plate.create (10.0<inch>, 1.0<inch>, SteelMaterial.create (50.0<ksi>, 60.0<ksi>, 29000.0<ksi>), Some [Rotate Ninety; Mirror Vertical]))
 
     type SingleAngle =
         {
@@ -261,6 +287,35 @@ module Sections =
                 }
             doubleAngle
 
+    type GenericProperties =
+        {
+        Description : string
+        Area : float<inch^2>
+        XBar: float<inch>
+        YBar: float<inch>
+        }
+
+    type GenericSection =
+        {
+        GenericProperties : GenericProperties
+        Material : SteelMaterial
+        Transformations : Transformation list option
+        }
+        interface ISection
+
+        static member create (description, area, xBar, yBar, material, transformations) =         
+            {
+            GenericProperties =
+                {
+                Description = description
+                Area = area
+                XBar = xBar
+                YBar = yBar
+                }
+            Material = material
+            Transformations = transformations
+            }
+
     type ISection with
         member this.Material =
             match this with
@@ -269,6 +324,7 @@ module Sections =
             | :? DoubleAngle as da -> da.Material
             | :? CF_SingleAngle as cfsa -> cfsa.Material
             | :? CF_DoubleAngle as cfda -> cfda.Material
+            | :? GenericSection as gs -> gs.Material
             | _ -> failwith "Type not supported"
         member this.Transformations =
             match this with
@@ -277,10 +333,11 @@ module Sections =
             | :? DoubleAngle as da -> da.Transformations
             | :? CF_SingleAngle as cfsa -> cfsa.Transformations
             | :? CF_DoubleAngle as cfda -> cfda.Transformations
+            | :? GenericSection as gs -> gs.Transformations
             | _ -> failwith "Type not supported"
 
-[<AutoOpen>]
-module SectionOps =
+[<RequireQualifiedAccess>]
+module Section =
     open Sections
 
     let description (shape : ISection) =
@@ -299,6 +356,7 @@ module SectionOps =
             String.Format("CF2L{0}x{1}x{2}x{3}r{4}",
                 cfda.VerticalLeg, cfda.HorizontalLeg,
                 cfda.Thickness, cfda.Gap, cfda.Radius)
+        | :? GenericSection as gs -> gs.GenericProperties.Description
         | _ -> failwith "Type not supported."
 
     let rec area (shape : ISection) =
@@ -309,7 +367,8 @@ module SectionOps =
         | :? DoubleAngle as da ->
             2.0 * (da.HorizontalLeg + da.VerticalLeg - da.Thickness) * da.Thickness
         | :? CF_SingleAngle as cfsa -> area (cfsa.Blank)
-        | :? CF_DoubleAngle as cfda -> 2.0 * area (cfda.Blank)               
+        | :? CF_DoubleAngle as cfda -> 2.0 * area (cfda.Blank)
+        | :? GenericSection as gs -> gs.GenericProperties.Area               
         | _ -> failwith "Type not supported."
 
     let xBar (shape : ISection) =
@@ -320,6 +379,7 @@ module SectionOps =
                 ((sa.VerticalLeg - sa.Thickness) * sa.Thickness * sa.Thickness/2.0))
                 / (area sa)
         | :? DoubleAngle -> 0.0<inch>
+        | :? GenericSection as gs -> gs.GenericProperties.XBar
         | _ -> failwith "Type not supported."
         
     let yBar (shape : ISection) =
@@ -333,43 +393,26 @@ module SectionOps =
             ((da.HorizontalLeg - da.Thickness) * da.Thickness * da.Thickness/2.0 +
                 (da.VerticalLeg * da.Thickness * da.VerticalLeg/2.0))
                 / ((area da) / 2.0)
+        | :? GenericSection as gs -> gs.GenericProperties.YBar
         | _ -> failwith "Type not supported."
 
-    type ISection with
-        member this.Description = description this
-        member this.Area = area this
-        member this.XBar = xBar this
-        member this.YBar = yBar this
+    let apply f (section: ISection) = f section
 
     let allowableTension (section : ISection) : float<kip> =
-        section.Area * section.Material.Fy
-
-    let apply f (section: ISection) = f section
+        (area section) * section.Material.Fy
 
 
 
-module Test =
-    open Sections
-    open SectionOps
+[<AutoOpen>]
+module ISectionExtensions =
+    type ISection with
+        member this.Description = Section.description this
+        member this.Area = Section.area this
+        member this.XBar = Section.xBar this
+        member this.YBar = Section.yBar this
 
-    let mySection = SingleAngle.create (3.0<inch>, 3.0<inch>, 0.25<inch>,
-                                        SteelMaterial.create (50.0<ksi>, 60.0<ksi>, 29000.0<ksi>),
-                                        None)
 
-    let myArea = mySection.Area
-    let myArea2 = area mySection
-    let myMaterialFy = mySection.Material.Fy
-    let allowableTension = allowableTension mySection
 
-    let apply f (section: ISection) = f section
-
-    mySection |> apply (fun section -> printfn "Section Area = %f" section.Area)
-
-    let newSection = {mySection with Material = {mySection.Material with Fy = 36.0<ksi>; Fu = 50.0<ksi>}}
-
-    let myPlate = Plate.create (10.0<inch>, 1.0<inch>,
-                                SteelMaterial.create (50.0<ksi>, 60.0<ksi>, 29000.0<ksi>),
-                                None)
 
 
 
