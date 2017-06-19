@@ -3,6 +3,17 @@
 The following is a simple recursive function to calculate the fibonacci of
 a particular value:
 *)
+
+[<Measure>] type inch
+
+let test = 40 + 2
+
+let myValue = 3.0<inch>
+
+let doubleValue (value : float<inch>) = value * 2.0
+
+let newValue = doubleValue myValue
+
 let rec fib n =
     match n with
     | 0 -> 0

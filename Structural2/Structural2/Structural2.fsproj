@@ -45,7 +45,9 @@
   <ItemGroup>
     <Compile Include="AssemblyInfo.fs" />
     <Compile Include="Shape.fs" />
-    <None Include="Script.fsx" />
+    <None Include="MaterialDatabase.fsx" />
+    <None Include="SectionDatabase.fsx" />
+    <None Include="Test.fsx" />
   </ItemGroup>
   <PropertyGroup>
     <MinimumVisualStudioVersion Condition="'$(MinimumVisualStudioVersion)' == ''">11</MinimumVisualStudioVersion>
