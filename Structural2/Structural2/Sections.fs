@@ -27,12 +27,6 @@ module Materials =
         override this.ToString() =
             System.String.Format("\r\n{{\r\nFy = {0:0.0####} <ksi>\r\nFu = {1:0.0####} <ksi>\r\nE = {2:0.0####} <ksi>\r\n}}", this.Fy, this.Fu, this.E)
         member this.AsString = this.ToString()
-     
-
-
-module test =
-    let myMaterial = (SteelMaterial.create (50.0<ksi>, 60.0<ksi>, 29000.0<ksi>))
-
 
 type Rotation =
     | Ninety
@@ -46,6 +40,41 @@ type Mirror =
 type Transformation =
     | Rotate of Rotation
     | Mirror of Mirror
+
+module FormatHelpers =
+
+    let materialString (steelMaterial: SteelMaterial) leadingSpaces =
+        let lines = steelMaterial.AsString.Split([|"\r\n"|], StringSplitOptions.None )
+        let spaces =
+            let mutable spaces = ""
+            for i in 1..leadingSpaces do
+                spaces <- spaces + " "
+            spaces
+        let lines =
+            [for line in lines do
+                yield spaces + line]
+        let mutable combinedLines = ""
+        for i in 0..lines.Length - 1 do
+            if i <> lines.Length - 1 then
+                combinedLines <- combinedLines + lines.[i] + "\r\n"
+            else
+                combinedLines <- combinedLines + lines.[i]
+        combinedLines
+
+    let transformationString (transformations: Transformation list option) =
+        match transformations with
+        | Some value ->
+            let rec transformationString value =
+                match value with
+                | [] -> ""
+                | Rotate Ninety :: tail -> "Rotate Ninety\r\n" + transformationString tail
+                | Rotate OneEighty :: tail -> "Rotate OneEighty\r\n" + transformationString tail
+                | Rotate TwoSeventy :: tail -> "Rotate TwoSeventy\r\n" + transformationString tail
+                | Mirror Vertical :: tail -> "Mirror Vertical \r\n" + transformationString tail
+                | Mirror Horizontal :: tail -> "Mirror Horizontal \r\n" + transformationString tail
+            transformationString value
+
+        | None -> box "null"
 
 [<AutoOpen>]
 module Sections =
@@ -66,14 +95,9 @@ module Sections =
                 match this.Transformations with
                 | Some value -> box value
                 | None -> box "null"
-            let material =
-                let lines = this.Material.AsString.Split([|"\r\n"|], StringSplitOptions.None )
-                [for line in lines do
-                    yield "          " + line]
-                |> List.fold (fun r s -> r + s + "\r\n") ("")
                    
             System.String.Format("Plate =\r\n{{\r\nLength = {0:0.0####} <inch>\r\nThickness = {1:0.0####} <inch>\r\nMaterial = {2:0.0####}\r\nTransformations = {3}\r\n}}",
-                this.Length, this.Thickness, material, transformations)
+                this.Length, this.Thickness, SteelMaterial.materialString this.Material 10, transformations)
         member this.AsString = this.ToString()
 
         static member create (length, t, material, transformations) =
