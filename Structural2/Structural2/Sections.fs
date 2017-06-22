@@ -9,24 +9,56 @@ open UnitsNet.Units
 [<Measure>] type psi = lbf/inch^2
 [<Measure>] type ksi = kip/inch^2
 
+[<StructuredFormatDisplay("{AsString}")>]
+type Inch =
+    | Inch of float
+
+    override this.ToString() =
+        match this with
+        | Inch inch -> String.Format("{0:0.0####} <inch>", inch)
+    
+    member this.AsString = this.ToString()
+
+    member this.inch =
+        match this with
+        | Inch value -> box value :?> float<inch> 
+
+    static member fromFloatInch (inch : float<inch>) =
+        Inch (box inch :?> float)
+
+
+
+
+[<StructuredFormatDisplay("{AsString}")>]
+type Ksi =
+    | Ksi of float
+
+    override this.ToString() =
+        match this with
+        | Ksi ksi -> String.Format("{0:0.0####} <ksi>", ksi)
+    
+    member this.AsString = this.ToString()
+
+    member this.ksi =
+        match this with
+        | Ksi value -> box value :?> float<ksi>
+
 type ISection = interface end
 
 [<AutoOpen>]
 module Materials =
 
-    [<StructuredFormatDisplay("{AsString}")>]
     type SteelMaterial =
         {
-        Fy : float<ksi>
-        Fu : float<ksi>
-        E : float<ksi>
+        Fy : Ksi
+        Fu : Ksi
+        E : Ksi
         }   
         
-        static member create (Fy, Fu, E) = {Fy = Fy; Fu = Fu; E = E}
+        static member create (Fy, Fu, E) =
+            {Fy = Fy; Fu = Fu; E = E}
 
-        override this.ToString() =
-            System.String.Format("\r\n{{\r\nFy = {0:0.0####} <ksi>\r\nFu = {1:0.0####} <ksi>\r\nE = {2:0.0####} <ksi>\r\n}}", this.Fy, this.Fu, this.E)
-        member this.AsString = this.ToString()
+    
 
 type Rotation =
     | Ninety
@@ -41,64 +73,19 @@ type Transformation =
     | Rotate of Rotation
     | Mirror of Mirror
 
-module FormatHelpers =
-
-    let materialString (steelMaterial: SteelMaterial) leadingSpaces =
-        let lines = steelMaterial.AsString.Split([|"\r\n"|], StringSplitOptions.None )
-        let spaces =
-            let mutable spaces = ""
-            for i in 1..leadingSpaces do
-                spaces <- spaces + " "
-            spaces
-        let lines =
-            [for line in lines do
-                yield spaces + line]
-        let mutable combinedLines = ""
-        for i in 0..lines.Length - 1 do
-            if i <> lines.Length - 1 then
-                combinedLines <- combinedLines + lines.[i] + "\r\n"
-            else
-                combinedLines <- combinedLines + lines.[i]
-        combinedLines
-
-    let transformationString (transformations: Transformation list option) =
-        match transformations with
-        | Some value ->
-            let rec transformationString value =
-                match value with
-                | [] -> ""
-                | Rotate Ninety :: tail -> "Rotate Ninety\r\n" + transformationString tail
-                | Rotate OneEighty :: tail -> "Rotate OneEighty\r\n" + transformationString tail
-                | Rotate TwoSeventy :: tail -> "Rotate TwoSeventy\r\n" + transformationString tail
-                | Mirror Vertical :: tail -> "Mirror Vertical \r\n" + transformationString tail
-                | Mirror Horizontal :: tail -> "Mirror Horizontal \r\n" + transformationString tail
-            transformationString value
-
-        | None -> box "null"
 
 [<AutoOpen>]
 module Sections =
     open Materials
 
-    [<StructuredFormatDisplay("{AsString}")>]
     type Plate =
         {
-        Length : float<inch>
-        Thickness : float<inch>
+        Length : Inch
+        Thickness : Inch
         Material : SteelMaterial
         Transformations : Transformation list option
         }
         interface ISection
-
-        override this.ToString() =
-            let transformations = 
-                match this.Transformations with
-                | Some value -> box value
-                | None -> box "null"
-                   
-            System.String.Format("Plate =\r\n{{\r\nLength = {0:0.0####} <inch>\r\nThickness = {1:0.0####} <inch>\r\nMaterial = {2:0.0####}\r\nTransformations = {3}\r\n}}",
-                this.Length, this.Thickness, SteelMaterial.materialString this.Material 10, transformations)
-        member this.AsString = this.ToString()
 
         static member create (length, t, material, transformations) =
             {
@@ -108,13 +95,13 @@ module Sections =
             Transformations = transformations
             }
 
-    let myPlate = (Plate.create (10.0<inch>, 1.0<inch>, SteelMaterial.create (50.0<ksi>, 60.0<ksi>, 29000.0<ksi>), Some [Rotate Ninety; Mirror Vertical]))
+    let myPlate = (Plate.create (Inch(10.0), Inch(1.0), SteelMaterial.create (Ksi(50.0), Ksi(60.0), Ksi(29000.0)), Some [Rotate Ninety; Mirror Vertical]))
 
     type SingleAngle =
         {
-        VerticalLeg : float<inch>
-        HorizontalLeg : float<inch>
-        Thickness : float<inch>
+        VerticalLeg : Inch
+        HorizontalLeg : Inch
+        Thickness : Inch
         Material : SteelMaterial
         Transformations : Transformation list option
         }
@@ -131,10 +118,10 @@ module Sections =
 
     type DoubleAngle =
         {
-        VerticalLeg : float<inch>
-        HorizontalLeg : float<inch>
-        Thickness : float<inch>
-        Gap : float<inch>
+        VerticalLeg : Inch
+        HorizontalLeg : Inch
+        Thickness : Inch
+        Gap : Inch
         Material : SteelMaterial
         Transformations : Transformation list option
         }
@@ -153,10 +140,10 @@ module Sections =
 
     type CF_SingleAngle =
         {
-        VerticalLeg : float<inch>
-        HorizontalLeg : float<inch>
-        Thickness : float<inch>
-        Radius : float<inch>
+        VerticalLeg : Inch
+        HorizontalLeg : Inch
+        Thickness : Inch
+        Radius : Inch
         Material : SteelMaterial
         Transformations : Transformation list option
         }
@@ -165,9 +152,10 @@ module Sections =
         member cfsa.Blank = 
             {
             Length =
-                ((cfsa.HorizontalLeg - cfsa.Radius - cfsa.Thickness) +
-                    (cfsa.VerticalLeg - cfsa.Radius - cfsa.Thickness) +
-                    (2.0 * Math.PI * (cfsa.Radius + cfsa.Thickness/2.0) * 0.25))
+                Inch.fromFloatInch
+                    ((cfsa.HorizontalLeg.inch - cfsa.Radius.inch - cfsa.Thickness.inch) +
+                     (cfsa.VerticalLeg.inch - cfsa.Radius.inch - cfsa.Thickness.inch) +
+                     (2.0 * Math.PI * (cfsa.Radius.inch + cfsa.Thickness.inch/2.0) * 0.25))
             Thickness = cfsa.Thickness
             Material = cfsa.Material
             Transformations = cfsa.Transformations
@@ -183,14 +171,14 @@ module Sections =
             Transformations = transformations
             }
 
-        static member createEqualLegFromBlank ((blank: Plate), radius, material, transformations) =
-            let radius' = radius + blank.Thickness/2.0
+        static member createEqualLegFromBlank ((blank: Plate), radius : Inch, material, transformations) =
+            let radius' = radius.inch + blank.Thickness.inch/2.0
             let curveLength = 2.0 * Math.PI * radius' * 0.25
-            let legLength = (blank.Length - curveLength) / 2.0
+            let legLength = (blank.Length.inch - curveLength) / 2.0
             let singleAngle = 
                 {
-                VerticalLeg = legLength
-                HorizontalLeg = legLength
+                VerticalLeg = Inch.fromFloatInch legLength
+                HorizontalLeg = Inch.fromFloatInch legLength
                 Thickness = blank.Thickness
                 Radius = radius
                 Material = material
@@ -198,13 +186,13 @@ module Sections =
                 }
             singleAngle
 
-        static member createUnequalLegFromBlankAndHLeg ((blank: Plate), radius, hLeg, material, transformations) =
-            let radius' = radius + blank.Thickness/2.0
+        static member createUnequalLegFromBlankAndHLeg ((blank: Plate), radius : Inch, hLeg : Inch, material, transformations) =
+            let radius' = radius.inch + blank.Thickness.inch/2.0
             let curveLength = 2.0 * Math.PI * radius' * 0.25
-            let vLeg = blank.Length - curveLength - hLeg
+            let vLeg = blank.Length.inch - curveLength - hLeg.inch
             let singleAngle =
                 {
-                VerticalLeg = vLeg
+                VerticalLeg = Inch.fromFloatInch vLeg
                 HorizontalLeg = hLeg
                 Thickness = blank.Thickness
                 Radius = radius
@@ -213,14 +201,14 @@ module Sections =
                 }
             singleAngle
 
-        static member createUnequalLegFromBlankAndVLeg ((blank: Plate), radius, vLeg, material, transformations) =
-            let radius' = radius + blank.Thickness/2.0
+        static member createUnequalLegFromBlankAndVLeg ((blank: Plate), radius : Inch, vLeg : Inch, material, transformations) =
+            let radius' = radius.inch + blank.Thickness.inch/2.0
             let curveLength = 2.0 * Math.PI * radius' * 0.25
-            let hLeg = blank.Length - curveLength - vLeg
+            let hLeg = blank.Length.inch - curveLength - vLeg.inch
             let singleAngle =
                 {
                 VerticalLeg = vLeg
-                HorizontalLeg = hLeg
+                HorizontalLeg = Inch.fromFloatInch hLeg
                 Thickness = blank.Thickness
                 Radius = radius
                 Material = material
@@ -231,11 +219,11 @@ module Sections =
 
     type CF_DoubleAngle =
         {
-        VerticalLeg : float<inch>
-        HorizontalLeg : float<inch>
-        Thickness : float<inch>
-        Radius : float<inch>
-        Gap : float<inch>
+        VerticalLeg : Inch
+        HorizontalLeg : Inch
+        Thickness : Inch
+        Radius : Inch
+        Gap : Inch
         Material : SteelMaterial
         Transformations : Transformation list option
         }
@@ -244,9 +232,10 @@ module Sections =
         member cfda.Blank : Plate = 
             {
             Length =
-                ((cfda.HorizontalLeg - cfda.Radius - cfda.Thickness) +
-                    (cfda.VerticalLeg - cfda.Radius - cfda.Thickness) +
-                    (2.0 * Math.PI * (cfda.Radius + cfda.Thickness/2.0) * 0.25))
+                Inch.fromFloatInch
+                 ((cfda.HorizontalLeg.inch - cfda.Radius.inch - cfda.Thickness.inch) +
+                    (cfda.VerticalLeg.inch - cfda.Radius.inch - cfda.Thickness.inch) +
+                    (2.0 * Math.PI * (cfda.Radius.inch + cfda.Thickness.inch/2.0) * 0.25))
             Thickness = cfda.Thickness
             Material = cfda.Material
             Transformations = cfda.Transformations
@@ -263,14 +252,14 @@ module Sections =
             Transformations = transformations
             }
   
-        static member createEqualLegFromBlank ((blank: Plate), radius, gap, material, transformations) =
-            let radius' = radius + blank.Thickness/2.0
+        static member createEqualLegFromBlank ((blank: Plate), radius : Inch, gap : Inch, material, transformations) =
+            let radius' = radius.inch + blank.Thickness.inch/2.0
             let curveLength = 2.0 * Math.PI * radius' * 0.25
-            let legLength = (blank.Length - curveLength) / 2.0
+            let legLength = (blank.Length.inch - curveLength) / 2.0
             let singleAngle = 
                 {
-                VerticalLeg = legLength
-                HorizontalLeg = legLength
+                VerticalLeg = Inch.fromFloatInch legLength
+                HorizontalLeg = Inch.fromFloatInch legLength
                 Thickness = blank.Thickness
                 Radius = radius
                 Gap = gap
@@ -279,13 +268,13 @@ module Sections =
                 }
             singleAngle
 
-        static member createUnequalLegFromBlankAndHLeg ((blank: Plate), radius, hLeg, gap, material, transformations) =
-            let radius' = radius + blank.Thickness/2.0
+        static member createUnequalLegFromBlankAndHLeg ((blank: Plate), radius : Inch, hLeg : Inch, gap : Inch, material, transformations) =
+            let radius' = radius.inch + blank.Thickness.inch/2.0
             let curveLength = 2.0 * Math.PI * radius' * 0.25
-            let vLeg = blank.Length - curveLength - hLeg
+            let vLeg = blank.Length.inch - curveLength - hLeg.inch
             let doubleAngle =
                 {
-                VerticalLeg = vLeg
+                VerticalLeg = Inch.fromFloatInch vLeg
                 HorizontalLeg = hLeg
                 Thickness = blank.Thickness
                 Radius = radius
@@ -295,14 +284,14 @@ module Sections =
                 }
             doubleAngle
 
-        static member createUnequalLegFromBlankAndVLeg ((blank: Plate), radius, vLeg, gap, material, transformations) =
-            let radius' = radius + blank.Thickness/2.0
+        static member createUnequalLegFromBlankAndVLeg ((blank: Plate), radius : Inch, vLeg : Inch, gap : Inch, material, transformations) =
+            let radius' = radius.inch + blank.Thickness.inch/2.0
             let curveLength = 2.0 * Math.PI * radius' * 0.25
-            let hLeg = blank.Length - curveLength - vLeg
+            let hLeg = blank.Length.inch - curveLength - vLeg.inch
             let doubleAngle =
                 {
                 VerticalLeg = vLeg
-                HorizontalLeg = hLeg
+                HorizontalLeg = Inch.fromFloatInch hLeg
                 Thickness = blank.Thickness
                 Radius = radius
                 Gap = gap
@@ -360,71 +349,106 @@ module Sections =
             | :? GenericSection as gs -> gs.Transformations
             | _ -> failwith "Type not supported"
 
+
+[<StructuredFormatDisplay("{AsString}")>]
+    type Calculation<'T> =
+        {Result : 'T
+         Units : string option
+         Reference : string option}
+
+         override this.ToString() =
+             let reference =
+                 match this.Reference with
+                 | Some value -> sprintf " [%s]" value
+                 | None -> ""
+             let units =
+                 match this.Units with
+                 | Some value -> sprintf " <%s>" value
+                 | None -> ""
+             sprintf "%A%s%s" this.Result units reference
+
+         member this.AsString = this.ToString()
+
+         static member create (result, units, reference) : Calculation<'T>=
+             {Result = result
+              Reference = reference
+              Units = units}
+
+
 [<RequireQualifiedAccess>]
 module Section =
     open Sections
 
     let description (shape : ISection) =
         match shape with
-        | :? Plate as pl -> String.Format("PL{0}x{1}", pl.Length, pl.Thickness)
+        | :? Plate as pl -> String.Format("PL{0}x{1}", pl.Length.inch, pl.Thickness.inch)
         | :? SingleAngle as sa ->
-            String.Format("L{0}x{1}x{2}", sa.VerticalLeg, sa.HorizontalLeg, sa.Thickness)
+            String.Format("L{0}x{1}x{2}", sa.VerticalLeg.inch, sa.HorizontalLeg.inch, sa.Thickness.inch)
         | :? DoubleAngle as da -> 
-            String.Format("2L{0}x{1}x{2}x{3}", da.VerticalLeg,
-                da.HorizontalLeg, da.Thickness, da.Gap)
+            String.Format("2L{0}x{1}x{2}x{3}", da.VerticalLeg.inch,
+                da.HorizontalLeg.inch, da.Thickness.inch, da.Gap.inch)
         | :? CF_SingleAngle as cfsa ->
             String.Format("CFL{0}x{1}x{2}r{3}",
-                cfsa.VerticalLeg, cfsa.HorizontalLeg,
-                cfsa.Thickness, cfsa.Radius)
+                cfsa.VerticalLeg.inch, cfsa.HorizontalLeg.inch,
+                cfsa.Thickness.inch, cfsa.Radius.inch)
         | :? CF_DoubleAngle as cfda ->
             String.Format("CF2L{0}x{1}x{2}x{3}r{4}",
-                cfda.VerticalLeg, cfda.HorizontalLeg,
-                cfda.Thickness, cfda.Gap, cfda.Radius)
+                cfda.VerticalLeg.inch, cfda.HorizontalLeg.inch,
+                cfda.Thickness.inch, cfda.Gap.inch, cfda.Radius.inch)
         | :? GenericSection as gs -> gs.GenericProperties.Description
         | _ -> failwith "Type not supported."
 
+
     let rec area (shape : ISection) =
-        match shape with
-        | :? Plate as pl -> pl.Length * pl.Thickness
-        | :? SingleAngle as sa ->
-            (sa.HorizontalLeg + sa.VerticalLeg - sa.Thickness) * sa.Thickness
-        | :? DoubleAngle as da ->
-            2.0 * (da.HorizontalLeg + da.VerticalLeg - da.Thickness) * da.Thickness
-        | :? CF_SingleAngle as cfsa -> area (cfsa.Blank)
-        | :? CF_DoubleAngle as cfda -> 2.0 * area (cfda.Blank)
-        | :? GenericSection as gs -> gs.GenericProperties.Area               
-        | _ -> failwith "Type not supported."
+        let result =
+            match shape with
+            | :? Plate as pl -> pl.Length.inch * pl.Thickness.inch
+            | :? SingleAngle as sa ->
+                (sa.HorizontalLeg.inch + sa.VerticalLeg.inch - sa.Thickness.inch) * sa.Thickness.inch
+            | :? DoubleAngle as da ->
+                2.0 * (da.HorizontalLeg.inch + da.VerticalLeg.inch - da.Thickness.inch) * da.Thickness.inch
+            | :? CF_SingleAngle as cfsa -> (area (cfsa.Blank)).Result
+            | :? CF_DoubleAngle as cfda -> 2.0 * (area (cfda.Blank)).Result
+            | :? GenericSection as gs -> gs.GenericProperties.Area               
+            | _ -> failwith "Type not supported."
+        Calculation.create (result, units = (Some "in^2"), reference = None) 
+        
+
 
     let xBar (shape : ISection) =
-        match shape with
-        | :? Plate as pl -> pl.Thickness/2.0
-        | :? SingleAngle as sa ->
-            (sa.HorizontalLeg * sa.Thickness * sa.HorizontalLeg/2.0 +
-                ((sa.VerticalLeg - sa.Thickness) * sa.Thickness * sa.Thickness/2.0))
-                / (area sa)
-        | :? DoubleAngle -> 0.0<inch>
-        | :? GenericSection as gs -> gs.GenericProperties.XBar
-        | _ -> failwith "Type not supported."
+        let result = 
+            match shape with
+            | :? Plate as pl -> pl.Thickness.inch/2.0
+            | :? SingleAngle as sa ->
+                (sa.HorizontalLeg.inch * sa.Thickness.inch * sa.HorizontalLeg.inch/2.0 +
+                    ((sa.VerticalLeg.inch - sa.Thickness.inch) * sa.Thickness.inch * sa.Thickness.inch/2.0))
+                    / (area sa).Result
+            | :? DoubleAngle -> 0.0<inch>
+            | :? GenericSection as gs -> gs.GenericProperties.XBar
+            | _ -> failwith "Type not supported."
+        Calculation.create (result, (Some "inch"), None)
         
     let yBar (shape : ISection) =
-        match shape with
-        | :? Plate as pl -> pl.Length/2.0
-        | :? SingleAngle as sa ->
-            ((sa.HorizontalLeg - sa.Thickness) * sa.Thickness * sa.Thickness/2.0 +
-                (sa.VerticalLeg * sa.Thickness * sa.VerticalLeg/2.0))
-                / (area sa)
-        | :? DoubleAngle as da ->
-            ((da.HorizontalLeg - da.Thickness) * da.Thickness * da.Thickness/2.0 +
-                (da.VerticalLeg * da.Thickness * da.VerticalLeg/2.0))
-                / ((area da) / 2.0)
-        | :? GenericSection as gs -> gs.GenericProperties.YBar
-        | _ -> failwith "Type not supported."
+        let result =
+            match shape with
+            | :? Plate as pl -> pl.Length.inch/2.0
+            | :? SingleAngle as sa ->
+                ((sa.HorizontalLeg.inch - sa.Thickness.inch) * sa.Thickness.inch * sa.Thickness.inch/2.0 +
+                    (sa.VerticalLeg.inch * sa.Thickness.inch * sa.VerticalLeg.inch/2.0))
+                    / (area sa).Result
+            | :? DoubleAngle as da ->
+                ((da.HorizontalLeg.inch - da.Thickness.inch) * da.Thickness.inch * da.Thickness.inch/2.0 +
+                    (da.VerticalLeg.inch * da.Thickness.inch * da.VerticalLeg.inch/2.0))
+                    / ((area da).Result / 2.0)
+            | :? GenericSection as gs -> gs.GenericProperties.YBar
+            | _ -> failwith "Type not supported."
+        Calculation.create (result, (Some "inch"), None)
 
     let apply f (section: ISection) = f section
 
-    let allowableTension (section : ISection) : float<kip> =
-        (area section) * section.Material.Fy
-
+    let allowableTension (section : ISection)=
+        let result = (area section).Result * section.Material.Fy.ksi : float<kip>
+        Calculation.create (result, (Some "kip"), None)
 
 
 [<AutoOpen>]

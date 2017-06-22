@@ -9,13 +9,28 @@ open Structural.SteelDesign
 
 (*** define: Section ***)
 let mySection = Plate.create
-                    (3.0<inch>, 3.0<inch>,
-                     SteelMaterial.create (50.0<ksi>, 60.0<ksi>, 29000.0<ksi>),
+                    (Inch(3.0), Inch(3.0),
+                     SteelMaterial.create (Ksi(50.0), Ksi(60.0), Ksi(29000.0)),
                      None)
 (*** include: Section ***)
 (*** include-value: mySection ***)
 
-(*** define: allowableTension ***)
-let allowableTension = Section.allowableTension mySection
+(*** define: test1 ***)
+let test1 = Section.area mySection
+(*** include: test1 ***)
+(*** include-value: test1 ***)
 
-(*** include-value: allowableTension ***)
+(*** define: test2***)
+let test2 = Section.xBar mySection
+(*** include: test2 ***)
+(*** include-value: test2 ***)
+
+(*** define: test2 ***)
+let test3 = Section.yBar mySection
+(*** include: test2 ***)
+(*** include-value: test2 ***)
+
+(*** define: test3 ***)
+let test4 = Section.allowableTension mySection
+(*** include: test3 ***)
+(*** include-value: test3 ***)

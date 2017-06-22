@@ -4,4 +4,4 @@ open Structural.SteelDesign
 
 module ASTM =
     
-    let A36 = SteelMaterial.create (50.0<ksi>, 60.0<ksi>, 29000.0<ksi>)
+    let A36 = SteelMaterial.create (Ksi(50.0), Ksi(60.0), Ksi(29000.0))
