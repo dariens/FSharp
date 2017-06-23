@@ -49,6 +49,10 @@ module MyLengths =
         member this.Value = value
         member this.Power = power
 
+        static member value (inch : Inch) = inch.Value
+        static member conversion = 1.0
+        static member baseUnit = Inch
+
         static member ToBase (inch : Inch) = Inch(inch.Value * 1.0, inch.Power)
         static member FromBase (inch : Inch) = Inch(inch.Value, inch.Power) 
         static member (*) (inch1:Inch, inch2:Inch) = Inch(inch1.Value*inch2.Value, inch1.Power + inch2.Power)
@@ -77,19 +81,6 @@ module MyLengths =
 
 
 
-
-type A = { thing : int}
-type B = { label : string }
-
-type ThingThatShows =
-    static member Area(a:A) = a.thing
-    static member Area(b:B) = b.label
-
-let A = { thing = 2}
-let B = { label = "label"}
-
-A |> ThingThatShows.Area
-B |> ThingThatShows.Area
 
 
 
