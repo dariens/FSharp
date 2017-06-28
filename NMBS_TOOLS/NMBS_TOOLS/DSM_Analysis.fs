@@ -1,7 +1,11 @@
 ﻿namespace NMBS_Tools.DSM_Analysis
 
 module FeedbackReport =
-   //#r "Microsoft.Office.Interop.Excel.dll"
+    #if INTERACTIVE
+    #r "Microsoft.Office.Interop.Excel.dll"
+    System.Environment.CurrentDirectory <- @"C:\Users\darien.shannon\Documents\Code\F#\FSharp\NMBS_TOOLS\NMBS_TOOLS\bin\Debug"
+    #endif
+
     open System
     open Microsoft.Office.Interop.Excel
     open System.IO
@@ -127,10 +131,11 @@ module FeedbackReport =
         jfeedbackList
 
     let dsmReports =
-        let reportPath = @"\\nmbsfaln-fs\sales\tools\weekly sales report\"
+        let reportPath = @"Data\Weekly Sales Reports"
         let reportDirectory = new DirectoryInfo(reportPath)
         let files = reportDirectory.GetFiles();
         [for file in files do yield file.FullName]
+
 
     let getAllFeedback () =
         let excelInfoList = getAllInfo dsmReports getJoistFeedbackFromWorkbook
@@ -167,7 +172,12 @@ module FeedbackReport =
         worksheet.Range("H1").Value2 <- "DSM"
         worksheet.Range("I1").Value2 <- "Week Start"
         
-        workbook.SaveAs(@"\\nmbsfaln-fs\sales\TOOLS\WEEKLY SALES REPORT\Weekly Workbook Analysis\Report_Temp.xlsx")
+
+        let outputPath = System.IO.Path.GetFullPath(@"Output\")
+        let resourcePath = System.IO.Path.GetFullPath(@"Resources\")
+
+
+        workbook.SaveAs(outputPath + @"Feedback Analysis.xlsx")
         Marshal.ReleaseComObject(worksheet) |> ignore
         workbook.Close()
         Marshal.ReleaseComObject(workbook) |> ignore
@@ -202,3 +212,5 @@ module FeedbackReport =
         let feedback = cleanFeedback (getAllFeedback())
         feedbackToExcel feedback
         printfn "Complete!"
+
+    sendAllFeedbackToExcel()

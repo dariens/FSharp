@@ -1,9 +1,6 @@
 ﻿namespace NMBS_Tools.EmployeeReports
 
 
-
-
-
 module EmployeeReport =
     open Deedle
     open System
@@ -12,10 +9,10 @@ module EmployeeReport =
     open System.Runtime.InteropServices
 
     let createEmployeeReport () =
-    //#r "../packages/Deedle.1.2.5/lib/net40/Deedle.dll"
-    //System.Environment.CurrentDirectory <- @"C:\Users\darien.shannon\Documents\Code\F#\Expert-FSharp-4.0\WeeklyWorkbookAnalysis\WeeklyWorkbookAnalysis\bin\Debug"
-        
-
+        #if INTERACTIVE
+        #r "../packages/Deedle.1.2.5/lib/net40/Deedle.dll"
+        System.Environment.CurrentDirectory <- @"C:\Users\darien.shannon\Documents\Code\F#\FSharp\NMBS_TOOLS\NMBS_TOOLS\bin\Debug"
+        #endif
 
         let jobsSold = Frame.ReadCsv(@"Data\Jobs Sold.csv")
         let jobsQuoted = Frame.ReadCsv(@"Data\Jobs Quoted.csv")
@@ -231,13 +228,9 @@ module EmployeeReport =
                 estimatorData
                 |> Frame.stack coordinatorData
             
-            //estimatorData.SaveCsv(@"Output\Estimator Analysis.csv")
-            //coordinatorData.SaveCsv(@"Output\Coordinator Analysis.csv")
             allData.SaveCsv(@"Output\Employee Analysis.csv")
 
-            //let app = new Microsoft.Office.Interop.Excel.ApplicationClass(Visible = false)
-            //let workbook = app.Workbooks.Open(@"Output\EstimatorAnalysis.csv")
-            //let worksheet = (estAnalyCsv.Worksheets.[0] :?> Worksheet)
+
             let outputPath = System.IO.Path.GetFullPath(@"Output\")
             let resourcePath = System.IO.Path.GetFullPath(@"Resources\")
 
