@@ -1,4 +1,48 @@
-﻿
+﻿open System.Diagnostics
+
+
+
+
+
+type IDimension =
+    abstract member Dimension : int
+
+[<RequireQualifiedAccess>]
+module Dim =
+
+    type ``1``() =
+        static member create = ``1``()
+        interface IDimension with
+            member this.Dimension = 1
+
+    type ``2``() =
+        static member create = ``2``()
+        interface IDimension with
+            member this.Dimension = 2
+
+    type ``3``() =
+        static member create = ``3``()
+        interface IDimension with
+            member this.Dimension = 3
+
+    type ``4``() =
+        static member create = ``4``()
+        interface IDimension with
+            member this.Dimension = 4
+
+    let dimFromInt (int : int) =
+        match int with
+        | 1 -> (``1``()) :> IDimension
+        | 2 -> (``2``()) :> IDimension
+        | 3 -> (``3``()) :> IDimension
+        | 4 -> (``4``()) :> IDimension
+        | _ -> failwith "Dimension not supported."
+
+
+    
+
+
+    
 
 
 let inline getValue (input : ^T) : float =
@@ -96,6 +140,21 @@ let inline convert3< ^TInitial, ^TFinal, ^TBase when
                          let output = (^TFinal : (static member create : float * float -> ^TFinal) (scaledValue, power))
                          output
 
+let inline unitAdd< ^T when
+                    ^T : (member Value: float) and
+                    ^T : (member Power: float) and
+                    ^T : (static member create: float*float -> ^T)>
+                    (unit1 : ^T, unit2 : ^T) =
+                    let value1 = (^T : (member Value: float) unit1)
+                    let power1 = (^T : (member Power: float) unit1)
+                    let value2 = (^T : (member Value: float) unit2)
+                    let power2 = (^T : (member Power: float) unit2)
+                    let power =
+                        match (power1, power2) with
+                        | power1, power2 when power1 = power2 -> power1
+                        | _ -> failwith "Cannot add units with different dimensions"
+                    (^T : (static member create: float*float -> ^T) (value1 + value2, power))
+
                             
 
 
@@ -105,8 +164,7 @@ type Inch(value : float, power : float) =
     static member scale = Inch(1.0)
     static member toBaseUnit (inch : Inch) = Inch(inch.Value, inch.Power)
     static member fromBaseUnit (inch : Inch) = Inch(inch.Value, inch.Power)
-    static member create (value:float, power:float) = Inch (value, power)
-    
+    static member create (value:float, power:float) = Inch (value, power)  
     new(value:float) = Inch(value, 1.0)
 
 type Foot(value : float, power : float) =
@@ -131,10 +189,37 @@ type Yard(value : float, power : float) =
 type Inch2(value : float, power : float) =
     member this.Value = value
     member this.Power = power
-    static member scale = Inch(1.0)
+    static member scale = Inch2(1.0)
     static member create (value:float, power:float) = Inch2 (value, power)
-    
+    static member add (first : Inch2, second : Inch2) = first.Value + second.Value
     new(value:float) = Inch2(value, 1.0)
+
+type Inch3< ^T when ^T :> IDimension
+                and ^T : (static member create : ^T)>(value : float) =
+    member inline this.Value = value
+    member inline this.Power = 
+        let defaultOfT = (^T : (static member create : ^T) ())
+        (defaultOfT :> IDimension).Dimension
+    static member inline (+) (first : Inch3<'T>, second:Inch3<'T>) = Inch3<'T>(first.Value + second.Value)
+
+
+    
+
+
+
+let myInch3 = Inch3<Dim.``1``>(3.0)
+myInch3.Power
+myInch3.Value
+
+let testAgain = myInch3 + myInch3
+
+
+
+
+let myNewInch = Inch3<Dim.``2``>(3.0)
+myNewInch.Power
+
+
 
 type Foot2(value : float, power : float) =
     member this.Value = value
@@ -204,4 +289,40 @@ myMile.Convert<Foot>()
 myMile.Convert<Yard>()
 myMile.Convert<Mile>()
 
+let inch_5 = Inch2(5.0)
+let inch_10 = Inch2(10.0)
+
+let test6 = unitAdd (inch_5,inch_10)
+
+[<Measure>] type inch
+
+let inch_5_2 = 5.0<inch>
+let inch_10_2 = 10.0<inch>
+
+let unitAdd2 (unit1:float<inch>, unit2:float<inch>) = unit1 + unit2
+
+let customInches = 
+    [for i in 1..10000000 do
+         yield (inch_5, inch_10)]
+
+let inches =
+    [for i in 1..10000000 do
+         yield (inch_5_2, inch_10_2)]
+
+let testTime list f =
+    let stopWatch = System.Diagnostics.Stopwatch.StartNew()
+    list |> List.map f |> ignore
+    stopWatch.Stop()
+    stopWatch.Elapsed.TotalMilliseconds
+
+
+let fullTest =
+    [for i in 1..10 do
+        yield testTime customInches Inch2.add / testTime customInches unitAdd]
+    |> Seq.average
+
+let myInch = Inch2(5.0)
+let myInch2 = Inch2(5.0, 2.0)
+
+unitAdd (myInch, myInch2)
 
