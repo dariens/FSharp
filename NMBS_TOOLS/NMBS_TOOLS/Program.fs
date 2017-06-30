@@ -7,9 +7,9 @@ let main argv =
 
     //FeedbackReport.sendAllFeedbackToExcel()
 
-    //EmployeeReport.createEmployeeReport()
+    EmployeeReport.createEmployeeReport()
 
-    CustomerReports.createCustomerAnalysis()
+    //CustomerReports.createCustomerAnalysis()
 
     printfn "Click enter to exit."
 

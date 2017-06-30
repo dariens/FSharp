@@ -8,7 +8,7 @@
     <ProjectGuid>83a1def9-eaa8-4e02-b12c-4908c2fc5661</ProjectGuid>
     <OutputType>Exe</OutputType>
     <RootNamespace>NMBS_TOOLS</RootNamespace>
-    <AssemblyName>NMBS_TOOLS</AssemblyName>
+    <AssemblyName>Employee Report</AssemblyName>
     <TargetFrameworkVersion>v4.5.2</TargetFrameworkVersion>
     <AutoGenerateBindingRedirects>true</AutoGenerateBindingRedirects>
     <TargetFSharpCoreVersion>4.4.0.0</TargetFSharpCoreVersion>

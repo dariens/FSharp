@@ -110,10 +110,9 @@
             Frame.ofColumns allColumns
 
         let replaceVaueInColumnWith column oldValue newValue (frame : Frame<_,_>) =
-            let newColumn = frame.GetColumn<'b>(column)
+            let newColumn = frame.GetColumn<obj>(column)
                             |> Series.mapValues (fun v -> match v with
-                                                          | oldValue -> box newValue
-                                                          | _ -> box v )
+                                                          | oldValue -> box newValue )
             frame.ReplaceColumn(column, newColumn)
             frame
 
