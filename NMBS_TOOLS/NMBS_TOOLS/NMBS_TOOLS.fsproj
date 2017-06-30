@@ -59,6 +59,7 @@
     <Compile Include="DSM_Analysis.fs" />
     <Compile Include="EmployeeReports.fs" />
     <Compile Include="CustomerReports.fs" />
+    <Compile Include="BOM_Seismic_Seperation.fs" />
     <Compile Include="Program.fs" />
     <None Include="App.config" />
     <Content Include="packages.config" />
