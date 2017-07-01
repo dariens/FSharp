@@ -29,20 +29,24 @@ module Array2D =
         let a1l1,a1l2,a2l1,a2l2 = (Array2D.length1 a1),(Array2D.length2 a1),(Array2D.length1 a2),(Array2D.length2 a2)
         if a1l2 <> a2l2 then failwith "arrays have different column sizes"
         let result = Array2D.zeroCreate (a1l1 + a2l1) a1l2
-        Array2D.blit a1 0 0 result 0 0 a1l1 a1l2
-        Array2D.blit a2 0 0 result a1l1 0 a2l1 a2l2
+        let index =
+            if typeof<'a> = typeof<obj> then 1 else 0
+        Array2D.blit a1 (Array2D.base1 a1) (Array2D.base2 a1) result 0 0 a1l1 a1l2
+        Array2D.blit a2 (Array2D.base1 a2) (Array2D.base2 a2) result a1l1 0 a2l1 a2l2
         result
 
     let joinByCols (a1: 'a[,]) (a2: 'a[,]) =
         let a1l1,a1l2,a2l1,a2l2 = (Array2D.length1 a1),(Array2D.length2 a1),(Array2D.length1 a2),(Array2D.length2 a2)
         if a1l1 <> a2l1 then failwith "arrays have different row sizes"
         let result = Array2D.zeroCreate a1l1 (a1l2 + a2l2)
-        Array2D.blit a1 0 0 result 0 0 a1l1 a1l2
-        Array2D.blit a2 0 0 result 0 a1l2 a2l1 a2l2
+        Array2D.blit a1 (Array2D.base1 a1) (Array2D.base2 a1) result 0 0 a1l1 a1l2
+        Array2D.blit a2 (Array2D.base1 a2) (Array2D.base2 a2) result 0 a1l2 a2l1 a2l2
         result
 
         // here joiner function must be Array2D.joinByRows or Array2D.joinByCols
     let joinMany joiner (a: seq<'a[,]>)  = 
+        Seq.fold joiner (Seq.head a) (Seq.tail a)
+        (*
         let arrays = a |> Array.ofSeq
         if Array.length arrays = 0 then 
             failwith "no arrays"
@@ -59,4 +63,6 @@ module Array2D =
                     doJoin acc (Array.tail arrays)
             doJoin <|| (Array.head arrays, Array.tail arrays)
             // or doJoin arrays.[0] arrays.[1..] 
+            
+            *)
 
