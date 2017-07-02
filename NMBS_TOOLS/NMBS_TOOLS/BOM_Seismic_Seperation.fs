@@ -39,81 +39,146 @@ module Seperator =
             | null  -> None
             | value when value = (box "") -> None
             | _ -> Some ((box value) :?> 'T)
+
     
-    let getAllLoadNotes () =
-        let getAllInfo (reportPath : string ) (getInfoFunction : Workbook -> 'TOutput) =
-            let tempExcelApp = new Microsoft.Office.Interop.Excel.ApplicationClass(Visible = false)
-            try 
-                tempExcelApp.DisplayAlerts <- false
-                let tempReportPath = System.IO.Path.GetTempFileName()      
-                File.Delete(tempReportPath)
-                File.Copy(reportPath, tempReportPath)
-                let workbook = tempExcelApp.Workbooks.Open(tempReportPath)
-                let info = getInfoFunction workbook
-                workbook.Close(false)
-                Marshal.ReleaseComObject(workbook) |> ignore
-                System.GC.Collect() |> ignore
-                printfn "Finished processing %s." reportPath 
-                printfn "Finished processing all files."
-                info
-            finally
-                tempExcelApp.Quit()
-                Marshal.ReleaseComObject(tempExcelApp) |> ignore
-                System.GC.Collect() |> ignore
+    let getAllInfo (reportPath : string ) (getInfoFunctions : (Workbook -> 'TOutput) list) =
+        let tempExcelApp = new Microsoft.Office.Interop.Excel.ApplicationClass(Visible = false)
+        //let bom = tempExcelApp.Workbooks.Open(bomPath)
+        try 
+            tempExcelApp.DisplayAlerts <- false
+            let tempReportPath = System.IO.Path.GetTempFileName()      
+            File.Delete(tempReportPath)
+            File.Copy(reportPath, tempReportPath)
+            let workbook = tempExcelApp.Workbooks.Open(tempReportPath)
+            let info =
+                [for getInfoFunction in getInfoFunctions do
+                        yield getInfoFunction workbook]
+            workbook.Close(false)
+            Marshal.ReleaseComObject(workbook) |> ignore
+            System.GC.Collect() |> ignore
+            printfn "Finished processing %s." reportPath 
+            printfn "Finished processing all files."
+            info
+        finally
+            tempExcelApp.Quit()
+            Marshal.ReleaseComObject(tempExcelApp) |> ignore
+            System.GC.Collect() |> ignore
             
-        // 'getInfoFunction'
-        let getAllLoadNotesAsArray (bom: Workbook) =
+    type BomReturnTypes =
+            | Joists of obj [,] option
+            | Girders of (obj [,] * obj [,]) option
+            | Loads of obj [,] option
+
+    let getLoads (bom: Workbook) =
+        let workSheetNames = [for sheet in bom.Worksheets -> (sheet :?> Worksheet).Name]
+        if (workSheetNames |> List.contains "L (") = false then
+            Loads None
+        else
             let arrayList =
                 seq [for sheet in bom.Worksheets do
                         let sheet = (sheet :?> Worksheet)
                         if sheet.Name.Contains("L (") then
-                            yield sheet.Range("A14","M55").Value2 :?> obj [,]]    
-            Array2D.joinMany (Array2D.joinByRows) arrayList
+                            yield sheet.Range("A14","M55").Value2 :?> obj [,]]   
+            Loads (Some (Array2D.joinMany (Array2D.joinByRows) arrayList))
 
-        let getLoadFromArraySlice (a : obj []) =
-            {
-            Type = string a.[1]
-            Category = string a.[2]
-            Position = string a.[3]
-            Load1Value =  (box a.[5]) :?> float
-            Load1DistanceFt = nullableToOption<float> a.[6]
-            Load1DistanceIn = nullableToOption<float> a.[7]
-            Load2Value = nullableToOption<float> a.[8]
-            Load2DistanceFt = nullableToOption<float> a.[9]
-            Load2DistanceIn = nullableToOption<float> a.[10]
-            Ref = nullableToOption<string> a.[11]
-            LoadCase = nullableToOption<string> a.[12]
-            }
+    let getJoists (bom : Workbook) =
+        let workSheetNames = [for sheet in bom.Worksheets -> (sheet :?> Worksheet).Name]
+        if (workSheetNames |> List.contains "J (") = false then
+            Joists None
+        else
+            let arrayList =
+                seq [for sheet in bom.Worksheets do
+                        let sheet = (sheet :?> Worksheet)
+                        if sheet.Name.Contains("J (") then
+                            yield sheet.Range("A23","AA40").Value2 :?> obj [,]]
+            Joists (Some (Array2D.joinMany (Array2D.joinByRows) arrayList))
 
-        let getLoadNotesFromArray (a2D : obj[,]) =
-            let mutable startIndex = Array2D.base1 a2D 
-            let endIndex = (a2D |> Array2D.length1) - match startIndex with
-                                                      | 0 -> 1
-                                                      | _ -> 0
-            let loadNotes = 
-                let mutable loadNumber = ""
-                [for currentIndex = startIndex to endIndex do
-                    if a2D.[currentIndex, 1] <> null && a2D.[currentIndex,1] <> (box "") then
-                        if a2D.[currentIndex, 0] <> null && a2D.[currentIndex, 0] <> (box "") then
-                            loadNumber <- string a2D.[currentIndex, 0]
-                        yield {LoadNumber = loadNumber; Load = getLoadFromArraySlice a2D.[currentIndex, *]}]
-            loadNotes
+    let getGirders (bom : Workbook) =
+        let workSheetNames = [for sheet in bom.Worksheets -> (sheet :?> Worksheet).Name]
+        if (workSheetNames |> List.contains "G (") = false then
+            Girders None
+        else
+            let arrayList1 =
+                seq [for sheet in bom.Worksheets do
+                        let sheet = (sheet :?> Worksheet)
+                        if sheet.Name.Contains("G (") then
+                            yield sheet.Range("A28","AA45").Value2 :?> obj [,]]
+            let arrayList2 =
+                seq [for sheet in bom.Worksheets do
+                        let sheet = (sheet :?> Worksheet)
+                        if sheet.Name.Contains("G (") then
+                            yield sheet.Range("AB14","BG45").Value2 :?> obj [,]]
+                
+            Girders (Some ((Array2D.joinMany (Array2D.joinByRows) arrayList1,
+                            Array2D.joinMany (Array2D.joinByRows) arrayList2)))
 
-        let getAllLoadsFromBomAsArray bomPath = getAllInfo bomPath getAllLoadNotesAsArray
+    let getInfoFunctions = [getJoists; getGirders; getLoads]
 
-        let getAllLoadNotesFromBom bomPath = getLoadNotesFromArray (getAllLoadsFromBomAsArray bomPath)
+    type BomInfo = 
+        {
+        Joists : BomReturnTypes
+        Girders : BomReturnTypes
+        Loads : BomReturnTypes
+        }
 
-        let bomPath = @"C:\Users\darien.shannon\Desktop\4317-0092 Joist BOMs-For_Import_06-28-17.xlsx"
+    let getAllBomInfo bomPath =
+        let [joists; girders; loads] = getAllInfo bomPath getInfoFunctions /// warning is OK since this will always return a list of three itmes
+        {
+        Joists = joists
+        Girders = girders
+        Loads = loads
+        }
 
-        let getAllLoadNotes () =
-            let timer = new System.Diagnostics.Stopwatch()
-            timer.Start()
-            let loads = getAllLoadNotesFromBom bomPath
-            timer.Stop()
-            printfn "Processed BOM in %f seconds" (float timer.ElapsedMilliseconds/1000.0)
-            loads
+    let bomPath = @"C:\Users\darien.shannon\Desktop\4317-0092 Joist BOMs-For_Import_06-28-17.xlsx"
 
-        getAllLoadNotes()
+    let allBomInfo = getAllBomInfo bomPath
+
+
+    ///////////////////////// GOOD UNTILL HERE  ///////////////////////
+
+    let getLoadFromArraySlice (a : obj []) =
+        {
+        Type = string a.[1]
+        Category = string a.[2]
+        Position = string a.[3]
+        Load1Value =  (box a.[5]) :?> float
+        Load1DistanceFt = nullableToOption<float> a.[6]
+        Load1DistanceIn = nullableToOption<float> a.[7]
+        Load2Value = nullableToOption<float> a.[8]
+        Load2DistanceFt = nullableToOption<float> a.[9]
+        Load2DistanceIn = nullableToOption<float> a.[10]
+        Ref = nullableToOption<string> a.[11]
+        LoadCase = nullableToOption<string> a.[12]
+        }
+
+    let getLoadNotesFromArray (a2D : obj[,]) =
+        let mutable startIndex = Array2D.base1 a2D 
+        let endIndex = (a2D |> Array2D.length1) - match startIndex with
+                                                    | 0 -> 1
+                                                    | _ -> 0
+        let loadNotes = 
+            let mutable loadNumber = ""
+            [for currentIndex = startIndex to endIndex do
+                if a2D.[currentIndex, 1] <> null && a2D.[currentIndex,1] <> (box "") then
+                    if a2D.[currentIndex, 0] <> null && a2D.[currentIndex, 0] <> (box "") then
+                        loadNumber <- string a2D.[currentIndex, 0]
+                    yield {LoadNumber = loadNumber; Load = getLoadFromArraySlice a2D.[currentIndex, *]}]
+        loadNotes
+
+    let getAllLoadsFromBomAsArray bomPath = getAllInfo bomPath getAllLoadNotesAsArray
+
+    let getAllLoadNotesFromBom bomPath = getLoadNotesFromArray (getAllLoadsFromBomAsArray bomPath)
+
+    let bomPath = @"C:\Users\darien.shannon\Desktop\4317-0092 Joist BOMs-For_Import_06-28-17.xlsx"
+
+    let getAllLoadNotes () =
+        let timer = new System.Diagnostics.Stopwatch()
+        timer.Start()
+        let loads = getAllLoadNotesFromBom bomPath
+        timer.Stop()
+        printfn "Processed BOM in %f seconds" (float timer.ElapsedMilliseconds/1000.0)
+        loads
+
 
 
 
