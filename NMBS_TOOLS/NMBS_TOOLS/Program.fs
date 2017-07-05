@@ -12,7 +12,12 @@ let main argv =
 
     //CustomerReports.createCustomerAnalysis()
 
-    let loadNotes = NMBS_Tools.BOM_Seismic_Seperation.Seperator.getAllLoadNotes()
+    let bomInfo = NMBS_Tools.BOM_Seismic_Seperation.Seperator.allBomInfo()
+
+    let test = bomInfo.Joists
+               |> List.map (fun joist -> joist.LC3Loads bomInfo.Loads 1.0)
+               |> List.filter (fun this -> this.IsEmpty = false)
+
 
 
     printfn "Click enter to exit."
