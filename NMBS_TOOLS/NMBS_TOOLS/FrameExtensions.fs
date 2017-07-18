@@ -3,6 +3,12 @@
     open Deedle
     
     module Frame =
+
+        let colCalcedFromCol colKey func newColKey df =
+            let colValues = (df |> Frame.getCol colKey).Values 
+            let newColValues = colValues |> Seq.map func 
+            df |> Frame.addCol newColKey (newColValues |> Series.ofValues)
+
         let whereRowValuesInColMeetReq colIndex req frame =
             Frame.filterRowValues (fun (objSeries : ObjectSeries<'a>) ->
                     (req (objSeries.Get(colIndex)))) frame

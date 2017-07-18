@@ -61,6 +61,7 @@
     <Compile Include="EmployeeReports.fs" />
     <Compile Include="CustomerReports.fs" />
     <Compile Include="BOM_Seismic_Seperation.fs" />
+    <Compile Include="TCWidths.fs" />
     <Compile Include="Program.fs" />
     <None Include="App.config" />
     <Content Include="packages.config" />
@@ -80,6 +81,7 @@
     <Reference Include="System.Core" />
     <Reference Include="System.Data" />
     <Reference Include="System.Numerics" />
+    <Reference Include="System.Windows.Forms" />
   </ItemGroup>
   <!-- To modify your build process, add your task inside one of the targets below and uncomment it. 
        Other similar extension points exist, see Microsoft.Common.targets.

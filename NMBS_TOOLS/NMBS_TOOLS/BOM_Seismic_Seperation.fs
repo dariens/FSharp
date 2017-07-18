@@ -13,7 +13,6 @@ module Seperator =
     open System.Runtime.InteropServices
     open NMBS_Tools.ArrayExtensions
 
-
     type Load =
         {
         Type : string;
@@ -26,13 +25,21 @@ module Seperator =
         Load2DistanceFt : obj
         Load2DistanceIn : obj
         Ref : obj
-        LoadCase : string
+        LoadCases : int list
         }
 
-        static member create(loadType, category, position, load1Value, load1DistanceFt, load1DistanceIn, load2Value, load2DistanceFt, load2DistanceIn, ref, loadcase) =
+        member this.LoadCaseString =
+            match this.LoadCases with
+            | [] -> ""
+            | _ -> 
+                this.LoadCases
+                |> List.map string
+                |> List.reduce (fun s1 s2 -> s1 + "," + s2)
+            
+        static member create(loadType, category, position, load1Value, load1DistanceFt, load1DistanceIn, load2Value, load2DistanceFt, load2DistanceIn, ref, loadcases) =
             {Type = loadType; Category = category; Position = position; Load1Value = load1Value;
              Load1DistanceFt = load1DistanceFt; Load1DistanceIn = load1DistanceIn; Load2Value = load2Value;
-             Load2DistanceFt = load2DistanceFt; Load2DistanceIn = load2DistanceIn; Ref = ref; LoadCase = loadcase}
+             Load2DistanceFt = load2DistanceFt; Load2DistanceIn = load2DistanceIn; Ref = ref; LoadCases = loadcases}
 
     type LoadNote =
         {
@@ -67,7 +74,7 @@ module Seperator =
                 let LL = float sizeAsArray.[2]
                 let DL = TL - LL
                 Some(Load.create("U", "CL", "TC", DL,
-                             null, null, null, null, null, null, "3"))
+                             null, null, null, null, null, null, [3]))
             else
                 None       
 
@@ -76,7 +83,7 @@ module Seperator =
             | Some udl -> 
                 let sds = 0.14 * sds * System.Convert.ToDouble(udl.Load1Value)
                 Some (Load.create ("U", "SM", "TC", sds,
-                              null, null, null, null, null, null, "3"))
+                              null, null, null, null, null, null, [3]))
             | None -> None
 
         member this.LC3Loads (loadNotes :LoadNote list) sds =
@@ -85,8 +92,8 @@ module Seperator =
                 loadNotes
                 |> List.filter (fun note -> this.LoadNoteList |> List.contains note.LoadNumber)
                 |> List.map (fun note -> note.Load)
-                |> List.filter (fun load -> load.Category <> "WL" && load.Category <> "SM" && (load.LoadCase = "" || load.LoadCase = "1"))
-                |> List.map (fun load -> {load with LoadCase = "3"})
+                |> List.filter (fun load -> load.Category <> "WL" && load.Category <> "SM" && (load.LoadCases = [] || (load.LoadCases |> List.contains 1)))
+                |> List.map (fun load -> {load with LoadCases = [3]})
                 |> List.append [udl; sds]
             | _ -> []
 
@@ -110,7 +117,7 @@ module Seperator =
             Load2DistanceFt = null
             Load2DistanceIn = null
             Ref = null
-            LoadCase = ""
+            LoadCases = []
             }
     
     type AdditionalJoist =
@@ -130,13 +137,58 @@ module Seperator =
         TcxrLengthFt : float
         TcxrLengthIn : float
         LoadNoteString : string option
-        AdditionalJoists : Load list 
+        AdditionalJoists : Load list
+
         }
 
         member this.LoadNoteList =
             match (this.LoadNoteString) with
             | Some notes -> Some (getLoadNotes notes)
             | None -> None
+
+        member this.BaseLength =
+            (this.OverallLengthFt + this.OverallLengthIn/12.0) -
+             (this.TcxlLengthFt + this.TcxlLengthIn/12.0) -
+              (this.TcxrLengthFt + this.TcxlLengthIn/12.0)
+
+        member this.UDL =
+            let size = this.GirderSize
+            let sizeAsArray = size.Split( [|"G"; "BG"; "VG"; "N"; "K"|], StringSplitOptions.RemoveEmptyEntries)
+            let numberOfSpaces = float sizeAsArray.[1]
+            let load = sizeAsArray.[2].Split([|"/"|], StringSplitOptions.RemoveEmptyEntries)
+            if (Array.length load) = 2 then
+                let TL = float load.[0]
+                let LL = float load.[1]
+                let DL = 1000.0 * (TL - LL)
+                let UDL = DL/(this.BaseLength / numberOfSpaces)
+                Load.create("U", "CL", "TC", UDL,
+                             null, null, null, null, null, null, [3])
+            else
+                failwith "GirderSize is not in correct format"
+
+        member this.SDS sds = 
+            let SDS = (Convert.ToDouble(this.UDL.Load1Value)) * 0.14 * sds
+            Load.create("U", "SM", "TC", SDS,
+                          null, null, null, null, null, null, [3])
+
+        member this.LC3Loads (loadNotes :LoadNote list) sds =
+                let additionalJoistLoads =
+                    this.AdditionalJoists
+                    |> List.map (fun load -> {load with LoadCases = [3]})
+                loadNotes
+                |> List.filter (fun note ->
+                    match this.LoadNoteList with
+                    | Some loadNoteList -> loadNoteList |> List.contains note.LoadNumber
+                    | None -> false)
+                |> List.map (fun note -> note.Load)
+                |> List.filter (fun load -> load.Category <> "WL" && load.Category <> "SM" && (load.LoadCases = [] || (load.LoadCases |> List.contains 1)))
+                |> List.map (fun load -> {load with LoadCases = [3]})
+                |> List.append [this.UDL; this.SDS sds]
+                |> List.append additionalJoistLoads
+
+
+            
+
 
 
     module CleanBomInfo =
@@ -150,6 +202,13 @@ module Seperator =
 
         module CleanLoads =
 
+            let getLoadCases (loadCaseString: string) =
+                let loadNotes = loadCaseString.Split([|","|], StringSplitOptions.RemoveEmptyEntries)
+                let loadNotes = loadNotes
+                                |> List.ofArray
+                                |> List.map (fun string -> System.Int32.Parse(string))
+                loadNotes
+
             let getLoadFromArraySlice (a : obj []) =
                 {
                 Type = string a.[1]
@@ -162,7 +221,7 @@ module Seperator =
                 Load2DistanceFt = a.[9]
                 Load2DistanceIn = a.[10]
                 Ref = a.[11]
-                LoadCase = string a.[12]
+                LoadCases = getLoadCases (string a.[12])
                 }
 
             let getLoadNotesFromArray (a2D : obj[,]) =
@@ -195,23 +254,29 @@ module Seperator =
 
         module CleanGirders =
 
+            let toDouble (s : obj) =
+                match (box s) with
+                | v when v = (box "") -> 0.0
+                | _ -> Convert.ToDouble(s)
+
             let getGirdersFromArray (a2D : obj [,]) =
                 let mutable startIndex = Array2D.base1 a2D
+                let colIndex = Array2D.base2 a2D
                 let endIndex = (a2D |> Array2D.length1) - (if startIndex = 0 then 1 else 0)
                 let girders : Girder list =
                     [for currentIndex = startIndex to endIndex do
-                        if a2D.[currentIndex, 0] <> null && a2D.[currentIndex, 0] <> (box "") then
+                        if a2D.[currentIndex, colIndex] <> null && a2D.[currentIndex, colIndex] <> (box "") then
                             yield
                                 {
-                                Mark = string a2D.[currentIndex, 0]
-                                GirderSize = string a2D.[currentIndex, 2]
-                                OverallLengthFt = Convert.ToDouble(a2D.[currentIndex, 3])
-                                OverallLengthIn = Convert.ToDouble(a2D.[currentIndex, 4])
-                                TcxlLengthFt = Convert.ToDouble(a2D.[currentIndex, 6])
-                                TcxlLengthIn = Convert.ToDouble(a2D.[currentIndex, 7])
-                                TcxrLengthFt = Convert.ToDouble(a2D.[currentIndex, 9])
-                                TcxrLengthIn = Convert.ToDouble(a2D.[currentIndex, 10])
-                                LoadNoteString = nullableToOption<string> a2D.[currentIndex, 25]
+                                Mark = string a2D.[currentIndex, colIndex]
+                                GirderSize = string a2D.[currentIndex, colIndex + 2]
+                                OverallLengthFt = toDouble(a2D.[currentIndex, colIndex + 3])
+                                OverallLengthIn = toDouble(a2D.[currentIndex, colIndex + 4])
+                                TcxlLengthFt = toDouble(a2D.[currentIndex, colIndex + 6])
+                                TcxlLengthIn = toDouble(a2D.[currentIndex, colIndex + 7])
+                                TcxrLengthFt = toDouble(a2D.[currentIndex, colIndex + 9])
+                                TcxrLengthIn = toDouble(string a2D.[currentIndex, colIndex + 10])
+                                LoadNoteString =  nullableToOption<string> a2D.[currentIndex, colIndex + 25]
                                 AdditionalJoists = []
                                 }]
                 girders
@@ -231,13 +296,14 @@ module Seperator =
 
             let getAdditionalJoistsFromArray (a2D : obj [,]) =
                 let mutable startIndex = Array2D.base1 a2D
+                let colIndex = Array2D.base2 a2D
                 let endIndex = (a2D |> Array2D.length1) - (if startIndex = 0 then 1 else 0)
                 let additionalJoists : AdditionalJoist list =
                     [for currentIndex = startIndex to endIndex do
-                        if a2D.[currentIndex, 0] <> null && a2D.[currentIndex, 0] <> (box "") then
+                        if a2D.[currentIndex, colIndex] <> null && a2D.[currentIndex, colIndex] <> (box "") then
                             yield
                                 {
-                                Mark = string a2D.[currentIndex, 0]
+                                Mark = string a2D.[currentIndex, colIndex]
                                 AdditionalJoists = getAdditionalJoistsFromArraySlice a2D.[currentIndex, *]
                                 } ]
                 additionalJoists
@@ -252,9 +318,16 @@ module Seperator =
                     let additionalJoists = girder.AdditionalJoists |> List.append additionalLoads
                     yield {girder with AdditionalJoists = additionalJoists}]
                     
-
+    let saveWorkbook title (workbook : Workbook) =
+            let saveFile = new System.Windows.Forms.SaveFileDialog()
+            saveFile.Filter <- "Excel files (*.xlsx)|*.xlsx"
+            saveFile.Title <- title
+            saveFile.ShowDialog() |> ignore
+            if saveFile.FileName <> "" then
+                workbook.CheckCompatibility <- false
+                workbook.SaveAs(saveFile.FileName)
     
-    let getAllInfo (reportPath : string ) (getInfoFunction : Workbook -> 'TOutput) (modifyWorkbookFunction : Workbook -> 'TOutput -> float -> Unit) =
+    let getAllInfo reportPath getInfoFunction modifyWorkbookFunction (sds : float) =
         let tempExcelApp = new Microsoft.Office.Interop.Excel.ApplicationClass(Visible = false)
         //let bom = tempExcelApp.Workbooks.Open(bomPath)
         try 
@@ -264,8 +337,10 @@ module Seperator =
             File.Copy(reportPath, tempReportPath)
             let workbook = tempExcelApp.Workbooks.Open(tempReportPath)
             let info = getInfoFunction workbook
-            modifyWorkbookFunction workbook info 1.0
-            workbook.SaveAs(@"C:\Users\darien.shannon\Desktop\test.xlsx")
+            modifyWorkbookFunction workbook info sds
+            
+            workbook |> saveWorkbook "Save New BOM"
+
             workbook.Close(false)
             Marshal.ReleaseComObject(workbook) |> ignore
             System.GC.Collect() |> ignore
@@ -275,8 +350,7 @@ module Seperator =
         finally
             tempExcelApp.Quit()
             Marshal.ReleaseComObject(tempExcelApp) |> ignore
-            System.GC.Collect() |> ignore
-            
+            System.GC.Collect() |> ignore            
 
     let getInfo (bom: Workbook) =
 
@@ -336,7 +410,8 @@ module Seperator =
                 let girdersAsArray = Array2D.joinMany (Array2D.joinByRows) arrayList1
                 let girders = CleanBomInfo.CleanGirders.getGirdersFromArray girdersAsArray
                 let additionalJoistsAsArray = Array2D.joinMany (Array2D.joinByRows) arrayList2
-                let additionalJoists = CleanBomInfo.CleanGirders.getAdditionalJoistsFromArray additionalJoistsAsArray
+                let additionalJoists =
+                    CleanBomInfo.CleanGirders.getAdditionalJoistsFromArray additionalJoistsAsArray
 
                 (CleanBomInfo.CleanGirders.addAdditionalJoistLoadsToGirders (girders, additionalJoists))
 
@@ -411,84 +486,121 @@ module Seperator =
                         else
                             sheet.Range("A16", "AA45").Value2 <- array
 
-        let addLC3Loads() =
+        let addLC3Loads sds =
 
             let addLoadSheet() =
                 let workSheetNames = [for sheet in bom.Worksheets -> (sheet :?> Worksheet).Name] 
                 let indexOfLastLoadSheet, lastLoadSheetNumber =
-                    let lastLoadSheetName = workSheetNames
-                                            |> List.filter (fun sheet -> sheet.Contains("L ("))
-                                            |> List.last
-                    (bom.Worksheets.[lastLoadSheetName] :?> Worksheet).Index, System.Int32.Parse(lastLoadSheetName.Split([|"(";")"|], StringSplitOptions.RemoveEmptyEntries).[1])
+                    let lastLoadSheetNumber = workSheetNames
+                                              |> List.filter (fun sheet -> sheet.Contains("L ("))
+                                              |> List.map (fun sheet -> System.Int32.Parse(sheet.Split([|"(";")"|], StringSplitOptions.RemoveEmptyEntries).[1]))
+                                              |> List.max
+                    (bom.Worksheets.[sprintf "L (%i)" lastLoadSheetNumber] :?> Worksheet).Index, lastLoadSheetNumber
                                  
 
                 let blankLoadWorksheet = bom.Worksheets.["L_A"] :?> Worksheet
                 blankLoadWorksheet.Visible <- Microsoft.Office.Interop.Excel.XlSheetVisibility.xlSheetVisible
                 blankLoadWorksheet.Copy(bom.Worksheets.[indexOfLastLoadSheet + 1])
+                blankLoadWorksheet.Visible <- Microsoft.Office.Interop.Excel.XlSheetVisibility.xlSheetHidden
                 let newLoadSheet = (bom.Worksheets.[indexOfLastLoadSheet + 1]) :?> Worksheet
                 newLoadSheet.Name <- "L (" + string(lastLoadSheetNumber + 1) + ")"
                 newLoadSheet
-
-            let newLoadSheet = addLoadSheet()
-            let array = newLoadSheet.Range("A14", "M55").Value2 :?> obj [,]
+                
             
             let joists, girders, loads = bomInfo
+          
             let joistsWithLC3Loads = joists |> List.filter (fun joist -> List.isEmpty (joist.LC3Loads loads sds) = false)
+            
             let mutable row = 1
-            for joist in joistsWithLC3Loads do
-                array.[row, 1] <- box ("S" + joist.Mark)
-                for load in (joist.LC3Loads loads 1.0) do
-                    array.[row, 2] <- box (load.Type)
-                    array.[row, 3] <- box (load.Category)
-                    array.[row, 4] <- load.Position
-                    array.[row, 6] <- load.Load1Value
-                    array.[row, 7] <- load.Load1DistanceFt
-                    array.[row, 8] <- load.Load1DistanceIn
-                    array.[row, 9] <- load.Load2Value
-                    array.[row, 10] <- load.Load2DistanceFt
-                    array.[row, 11] <- load.Load2DistanceIn
-                    array.[row, 12] <- load.Ref
-                    array.[row, 13] <- box (load.LoadCase)
-                    row <- row + 1
-            newLoadSheet.Range("A14", "M55").Value2 <- array
+            let mutable maxJoistIndex = List.length joistsWithLC3Loads
 
+            let mutable newLoadSheet = addLoadSheet()
+            let mutable array = newLoadSheet.Range("A14", "M55").Value2 :?> obj [,]            
             
+            let mutable joistIndex = 0  
+                   
 
+
+            while joistIndex < maxJoistIndex do
+                let joist = joistsWithLC3Loads.[joistIndex]
+
+                if row + (List.length (joist.LC3Loads loads sds)) >= 42 then
+                    newLoadSheet.Range("A14", "M55").Value2 <- array.Clone()
+                    newLoadSheet <- addLoadSheet()
+                    array <- newLoadSheet.Range("A14", "M55").Value2 :?> obj [,]
+                    row <- 1
+                    joistIndex <- joistIndex - 1
+                else
+                    array.[row, 1] <- box ("S" + joist.Mark)
+                    for load in (joist.LC3Loads loads sds) do
+                        array.[row, 2] <- box (load.Type)
+                        array.[row, 3] <- box (load.Category)
+                        array.[row, 4] <- load.Position
+                        array.[row, 6] <- load.Load1Value
+                        array.[row, 7] <- load.Load1DistanceFt
+                        array.[row, 8] <- load.Load1DistanceIn
+                        array.[row, 9] <- load.Load2Value
+                        array.[row, 10] <- load.Load2DistanceFt
+                        array.[row, 11] <- load.Load2DistanceIn
+                        array.[row, 12] <- load.Ref
+                        array.[row, 13] <- box (load.LoadCaseString)
+                        row <- row + 1
+                if joistIndex = maxJoistIndex - 1 then
+                    newLoadSheet.Range("A14", "M55").Value2 <- array
+                joistIndex <- joistIndex + 1
+
+            let girdersWithLC3Loads = girders |> List.filter (fun girder -> List.isEmpty (girder.LC3Loads loads sds) = false)
             
+            let mutable row = 1
+
+            let mutable maxGirderIndex = List.length girdersWithLC3Loads
+
+            let mutable newLoadSheet = addLoadSheet()
+
+            let mutable array = newLoadSheet.Range("A14", "M55").Value2 :?> obj [,]            
+            
+            let mutable girderIndex = 0   
+
+            while girderIndex < maxGirderIndex do
+                let girder = girdersWithLC3Loads.[girderIndex]
+
+                if row + (List.length (girder.LC3Loads loads sds)) >= 42 then
+                    newLoadSheet.Range("A14", "M55").Value2 <- array.Clone()
+                    newLoadSheet <- addLoadSheet()
+                    array <- newLoadSheet.Range("A14", "M55").Value2 :?> obj [,]
+                    row <- 1
+                    girderIndex <- girderIndex - 1
+                else
+                    array.[row, 1] <- box ("S" + girder.Mark)
+                    for load in (girder.LC3Loads loads sds) do
+                        array.[row, 2] <- box (load.Type)
+                        array.[row, 3] <- box (load.Category)
+                        array.[row, 4] <- load.Position
+                        array.[row, 6] <- load.Load1Value
+                        array.[row, 7] <- load.Load1DistanceFt
+                        array.[row, 8] <- load.Load1DistanceIn
+                        array.[row, 9] <- load.Load2Value
+                        array.[row, 10] <- load.Load2DistanceFt
+                        array.[row, 11] <- load.Load2DistanceIn
+                        array.[row, 12] <- load.Ref
+                        array.[row, 13] <- box (load.LoadCaseString)
+                        row <- row + 1
+                if girderIndex = maxGirderIndex - 1 then
+                    newLoadSheet.Range("A14", "M55").Value2 <- array
+                girderIndex <- girderIndex + 1
 
         changeSmLoadsToLC3()
         addLC3LoadsToLoadNotes()
-        addLC3Loads()
+        addLC3Loads sds
 
-    let getAllBomInfo bomPath =
-        let (joists, girders, loads) = getAllInfo bomPath getInfo modifyWorkbookFunction  /// warning is OK since this will always return a list of three itmes
+    let getAllBomInfo bomPath sds =
+        let (joists, girders, loads) = getAllInfo bomPath getInfo modifyWorkbookFunction sds  /// warning is OK since this will always return a list of three itmes
         {
         Joists = joists
         Girders = girders
         Loads = loads
         }
 
-
-    let bomPath = @"C:\Users\darien.shannon\Desktop\4317-0092 Joist BOMs-For_Import_06-28-17.xlsx"
-
-    let allBomInfo() = getAllBomInfo bomPath
-    (*
-    let joists = allBomInfo.Joists
-
-    let test() =
-        match joists with
-        | Some joists ->
-            for joist in joists do
-                printfn "JoistSize = %s; Udl = %A; USM = %A" joist.JoistSize joist.UDL (joist.Sds 1.0)
-        | None -> printfn "No Joists"
-
-
-    test()
-
-    let girders= allBomInfo.Girders
-    let loads = allBomInfo.Loads
-
-    *)
 
 
 
